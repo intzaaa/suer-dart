@@ -1,0 +1,60 @@
+name: Build and Release
+
+on:
+  push:
+
+permissions:
+  contents: write
+  discussions: write
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [macos-latest, ubuntu-latest, windows-latest]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Dart
+        uses: dart-lang/setup-dart@v1
+        with:
+          sdk: beta
+
+      - name: Install packages and compile exe
+        run: |
+          dart pub get
+          dart compile exe bin/main.dart
+
+      - name: Compile kernel
+        if: matrix.os == 'ubuntu-latest'
+        run: dart compile kernel bin/main.dart
+
+      - name: Rename
+        if: (matrix.os == 'macos-latest') || (matrix.os == 'ubuntu-latest')
+        run: mv bin/main.exe bin/main-${{ matrix.os }}.exe
+
+      - name: Archive production artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ runner.os }}-artifacts
+          path: .
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all workflow run artifacts
+        uses: actions/download-artifact@v3
+
+      - name: Create and upload release
+        uses: softprops/action-gh-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.run_id }}
+          name: Release ${{ github.run_id }}
+          files: |
+            **/*.dill
+            **/*.exe
