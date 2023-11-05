@@ -44,13 +44,13 @@ jobs:
         shell: pwsh
         run: |
           Remove-Item * -Include '*.dart','*.dill' -Recurse
-          Rename-Item bin/main* bin/main-${{ runner.os }}-${{ runner.arch }}*
+          Get-ChildItem -Recurse main.* | Rename-Item -NewName { $_.Name -replace 'main.','main-${{ runner.os }}-${{ runner.arch }}.' }
 
       - name: Zip
         shell: pwsh
         run: |
-          Move-Item * -Include * -Exclude bin,lib -Destination 'rm' -Force
-          Remove-Item * -Include 'rm' -Recurse -Force
+          Move-Item -Path * -Exclude bin,lib -Destination 'rm' -Force
+          Remove-Item -Path 'rm' -Recurse -Force
           Compress-Archive . -DestinationPath '${{ runner.os }}-${{ runner.arch }}.zip' -Force
 
       - name: Archive
@@ -74,4 +74,5 @@ jobs:
           tag_name: ${{ github.run_id }}
           name: Release ${{ github.run_id }}
           files: |
+            **/*.dill
             **/*.zip
