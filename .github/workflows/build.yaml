@@ -25,21 +25,39 @@ jobs:
       - name: Install packages and compile exe
         run: |
           dart pub get
+          dart compile aot-snapshot bin/main.dart
+          dart compile jit-snapshot bin/main.dart
           dart compile exe bin/main.dart
 
       - name: Compile kernel
         if: matrix.os == 'ubuntu-latest'
         run: dart compile kernel bin/main.dart
 
-      - name: Rename
-        if: (matrix.os == 'macos-latest') || (matrix.os == 'ubuntu-latest')
-        run: mv bin/main.exe bin/main-${{ matrix.os }}.exe
-
-      - name: Archive production artifacts
+      - name: Archive kernel
+        if: matrix.os == 'ubuntu-latest'
         uses: actions/upload-artifact@v3
         with:
-          name: ${{ runner.os }}-artifacts
-          path: .
+          name: kernel
+          path: bin/main.dill
+
+      - name: Rename
+        shell: pwsh
+        run: |
+          Remove-Item * -Include '*.dart','*.dill' -Recurse
+          Rename-Item bin/main* bin/main-${{ runner.os }}-${{ runner.arch }}*
+
+      - name: Zip
+        shell: pwsh
+        run: |
+          Move-Item * -Include * -Exclude bin,lib -Destination 'rm' -Force
+          Remove-Item * -Include 'rm' -Recurse -Force
+          Compress-Archive . -DestinationPath '${{ runner.os }}-${{ runner.arch }}.zip' -Force
+
+      - name: Archive
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ runner.os }}-${{ runner.arch }}
+          path: ${{ runner.os }}-${{ runner.arch }}.zip
 
   release:
     needs: build
@@ -56,5 +74,4 @@ jobs:
           tag_name: ${{ github.run_id }}
           name: Release ${{ github.run_id }}
           files: |
-            **/*.dill
-            **/*.exe
+            **/*.zip
